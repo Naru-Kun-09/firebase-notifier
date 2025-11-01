@@ -1,8 +1,9 @@
 name: Python Firebase Notifier
 
 on:
+  workflow_dispatch:       # Allows manual "Run workflow"
   schedule:
-    - cron: '* * * * *'  # Every 1 minute
+    - cron: '* * * * *'    # Every 1 minute
 
 jobs:
   send-notifications:
