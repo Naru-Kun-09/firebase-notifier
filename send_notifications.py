@@ -1,8 +1,7 @@
-
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import messaging
-from firebase_admin import db
+from firebase_admin import firestore
 import json
 import os
 from datetime import datetime
@@ -28,27 +27,21 @@ def send_notifications():
     Query Firestore for pending notifications and send them via FCM.
     """
     try:
-        db_instance = firebase_admin.get_app().database()
+        db_instance = firestore.client()
+        notifications_ref = db_instance.collection('notifications')
+        notifications = notifications_ref.where('sent', '==', False).stream()
 
-        # Get reference to 'notifications' collection
-        notifications_ref = db.reference('notifications')
-        notifications = notifications_ref.get()
-
-        if not notifications:
-            print(f"[{datetime.now()}] No notifications to send.")
-            return
-
-        # Iterate through pending notifications
-        for notif_id, notif_data in notifications.items():
-            if notif_data.get('sent') == True:
-                continue  # Skip already sent
+        found_any = False
+        for notif in notifications:
+            found_any = True
+            notif_id = notif.id
+            notif_data = notif.to_dict()
 
             fcm_token = notif_data.get('fcmToken')
             if not fcm_token:
                 print(f"[{datetime.now()}] Skipping notification {notif_id}: No FCM token")
                 continue
 
-            # Prepare payload
             title = notif_data.get('title', '🛎 New Order!')
             body = notif_data.get('body', 'New order placed.')
 
@@ -64,12 +57,14 @@ def send_notifications():
                 token=fcm_token,
             )
 
-            # Send message
             response = messaging.send(message)
             print(f"[{datetime.now()}] Successfully sent notification {notif_id}: {response}")
 
             # Mark as sent
-            notifications_ref.child(notif_id).update({'sent': True})
+            notifications_ref.document(notif_id).update({'sent': True})
+
+        if not found_any:
+            print(f"[{datetime.now()}] No notifications to send.")
 
     except Exception as e:
         print(f"[{datetime.now()}] Error sending notifications: {e}")
